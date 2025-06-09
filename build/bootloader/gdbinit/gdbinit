@@ -1,0 +1,2 @@
+source /Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader/gdbinit/symbols
+source /Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader/gdbinit/connect
