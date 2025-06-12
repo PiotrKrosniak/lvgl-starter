@@ -6,22 +6,22 @@ cmake_minimum_required(VERSION 3.5)
 # If CMAKE_DISABLE_SOURCE_CHANGES is set to true and the source directory is an
 # existing directory in our source tree, calling file(MAKE_DIRECTORY) on it
 # would cause a fatal error, even though it would be a no-op.
-if(NOT EXISTS "/Users/pkrosniak/esp/v5.4.1/esp-idf/components/bootloader/subproject")
-  file(MAKE_DIRECTORY "/Users/pkrosniak/esp/v5.4.1/esp-idf/components/bootloader/subproject")
+if(NOT EXISTS "C:/Users/anton/esp/v5.4.1/esp-idf/components/bootloader/subproject")
+  file(MAKE_DIRECTORY "C:/Users/anton/esp/v5.4.1/esp-idf/components/bootloader/subproject")
 endif()
 file(MAKE_DIRECTORY
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader"
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix"
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/tmp"
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp"
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src"
-  "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/tmp"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src"
+  "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()

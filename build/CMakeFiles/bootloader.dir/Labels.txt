@@ -1,13 +1,13 @@
 # Target labels
  bootloader
 # Source files and their labels
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/CMakeFiles/bootloader
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/CMakeFiles/bootloader.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/CMakeFiles/bootloader-complete.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
-/Users/pkrosniak/Downloads/ESP32-S3-Touch-LCD-2-Demo/ESP-IDF/06_lvgl_example/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/CMakeFiles/bootloader
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/CMakeFiles/bootloader.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/CMakeFiles/bootloader-complete.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

@@ -375,17 +375,32 @@ static void update_time_task(void *pvParameters) {
     }
 }
 
+static bool button_states[4] = {false, false, false, false}; // Track toggle state for each button
+
 static void box_event_cb(lv_event_t *e) {
     lv_obj_t *box = lv_event_get_target(e);
     lv_event_code_t code = lv_event_get_code(e);
     
-    if(code == LV_EVENT_PRESSED) {
-        // Change color to red when pressed
-        lv_obj_set_style_bg_color(box, lv_color_hex(0xFF0000), 0);
+    // Find the index of the button
+    int index = -1;
+    for (int i = 0; i < 4; i++) {
+        if (box == lv_obj_get_child(lv_obj_get_parent(box), i)) {
+            index = i;
+            break;
+        }
     }
-    else if(code == LV_EVENT_RELEASED) {
-        // Change back to blue when released
-        lv_obj_set_style_bg_color(box, lv_color_hex(0x0000FF), 0);
+    
+    if (index != -1) {
+        if (code == LV_EVENT_PRESSED) {
+            // Toggle the state
+            button_states[index] = !button_states[index];
+            // Set color based on toggle state
+            if (button_states[index]) {
+                lv_obj_set_style_bg_color(box, lv_color_hex(0x222222), 0); // Dark gray when highlighted
+            } else {
+                lv_obj_set_style_bg_color(box, lv_color_hex(0x000000), 0); // Black when not highlighted
+            }
+        }
     }
 }
 
@@ -398,16 +413,29 @@ static void create_clock_display(void) {
     lv_obj_set_flex_align(clock_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_all(clock_cont, 10, 0);
     lv_obj_set_style_border_width(clock_cont, 0, 0);
-    
+    lv_obj_set_style_bg_color(clock_cont, lv_color_hex(0x000000), 0); // Black background
+
     // Create time label
     time_label = lv_label_create(clock_cont);
     lv_obj_set_style_text_font(time_label, &lv_font_montserrat_26, 0);
     lv_label_set_text(time_label, "08:44:00");
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xFFD700), 0); // Golden text
     
     // Create date label
     date_label = lv_label_create(clock_cont);
     lv_obj_set_style_text_font(date_label, &lv_font_montserrat_26, 0);
     lv_label_set_text(date_label, "2025-06-09");
+    lv_obj_set_style_text_color(date_label, lv_color_hex(0xFFD700), 0); // Golden text
+
+    // Add a yellow line below the date label
+    lv_obj_t *line = lv_obj_create(clock_cont);
+    lv_obj_set_size(line, 200, 2);
+    lv_obj_set_style_bg_color(line, lv_color_hex(0xFFD700), 0); // Yellow line
+    lv_obj_set_style_border_width(line, 0, 0);
+    lv_obj_align_to(line, date_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 5); // Align below date label with 5px gap
+
+    // Set screen background to black
+    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x000000), 0);
 
     // Create container for boxes
     lv_obj_t *boxes_cont = lv_obj_create(lv_scr_act());
@@ -417,12 +445,13 @@ static void create_clock_display(void) {
     lv_obj_set_flex_align(boxes_cont, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_all(boxes_cont, 10, 0);
     lv_obj_set_style_border_width(boxes_cont, 0, 0);
+    lv_obj_set_style_bg_color(boxes_cont, lv_color_hex(0x000000), 0); // Black background
 
     // Create 4 boxes with labels
     for(int i = 1; i <= 4; i++) {
         lv_obj_t *box = lv_obj_create(boxes_cont);
         lv_obj_set_size(box, 70, 70);  // Size of each box
-        lv_obj_set_style_bg_color(box, lv_color_hex(0x0000FF), 0);  // Blue background
+        lv_obj_set_style_bg_color(box, lv_color_hex(0x000000), 0);  // Black background
         lv_obj_set_style_radius(box, 10, 0);  // Rounded corners
         lv_obj_set_style_border_width(box, 0, 0);
         
@@ -437,6 +466,7 @@ static void create_clock_display(void) {
         lv_label_set_text(label, label_text);
         // Set font size for the label
         lv_obj_set_style_text_font(label, &lv_font_montserrat_26, 0);  // Use 26pt font
+        lv_obj_set_style_text_color(label, lv_color_hex(0xFFD700), 0); // Golden text
         lv_obj_center(label);
     }
 }

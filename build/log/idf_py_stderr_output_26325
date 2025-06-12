@@ -1,6 +1,0 @@
-CMake Warning at /Users/pkrosniak/esp/v5.4.1/esp-idf/tools/cmake/project.cmake:566 (message):
-  enabled ccache in build but ccache program not found
-Call Stack (most recent call first):
-  CMakeLists.txt:8 (project)
-
-
