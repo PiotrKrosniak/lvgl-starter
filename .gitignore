@@ -1,3 +1,28 @@
-.vscode
-.vscode/*
-.build/*
+# IDE / editor settings
+.vscode/
+*.code-workspace
+
+# Build output (ESP-IDF / CMake / Ninja)
+build*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+*.o
+*.d
+*.a
+*.elf
+*.bin
+*.map
+*.log
+
+# Python virtual envs
+.env/
+.venv/
+
+# Core dumps / crash logs
+core*
+
+# Misc
+*.orig
+*.swp
+.DS_Store
