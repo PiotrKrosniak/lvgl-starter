@@ -84,7 +84,9 @@ C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/spiffs/libspiffs.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/touch_element/libtouch_element.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/usb/libusb.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/espressif__i2c_bus/libespressif__i2c_bus.a
+C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/espressif__bme280/libespressif__bme280.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/espressif__esp_lcd_touch/libespressif__esp_lcd_touch.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/espressif__esp_lcd_touch_cst816s/libespressif__esp_lcd_touch_cst816s.a
-C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a
 C:/Users/anton/Desktop/ESP32/lvgl-starter/build/esp-idf/main/libmain.a

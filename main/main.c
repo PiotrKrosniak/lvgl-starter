@@ -15,12 +15,15 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-#include "driver/i2c.h"
 
 #include "esp_log.h"
 
 #include "lvgl.h"
 #include "demos/lv_demos.h"
+
+// BME280 includes
+#include "bme280.h"
+#include "i2c_bus.h"
 
 #define EXAMPLE_PIN_NUM_SCLK 39
 #define EXAMPLE_PIN_NUM_MOSI 38
@@ -28,7 +31,7 @@
 
 #define EXAMPLE_SPI_HOST SPI2_HOST
 
-#define EXAMPLE_I2C_NUM 0 // I2C number
+#define EXAMPLE_I2C_NUM 0  // Use the same I2C port as BME280
 #define EXAMPLE_PIN_NUM_I2C_SDA 48
 #define EXAMPLE_PIN_NUM_I2C_SCL 47
 
@@ -57,6 +60,16 @@
 #define EXAMPLE_LVGL_TICK_PERIOD_MS 2
 #define EXAMPLE_LVGL_TASK_MAX_DELAY_MS 500
 #define EXAMPLE_LVGL_TASK_MIN_DELAY_MS 1
+
+// Update BME280 related defines with correct pins and I2C port
+#define BME280_I2C_ADDR 0x76  // BME280 I2C address
+#define BME280_SDA_PIN EXAMPLE_PIN_NUM_I2C_SDA  // Use same SDA pin as touch
+#define BME280_SCL_PIN EXAMPLE_PIN_NUM_I2C_SCL  // Use same SCL pin as touch
+#define BME280_I2C_NUM EXAMPLE_I2C_NUM  // Use same I2C port as touch
+
+// BME280 variables
+static bme280_handle_t bme280_dev = NULL;
+static i2c_bus_handle_t i2c_bus = NULL;
 
 static const char *TAG = "lvgl_example";
 static lv_indev_drv_t indev_drv; // Input device driver (Touch)
@@ -223,19 +236,6 @@ void touch_init(void)
 {
     esp_lcd_panel_io_handle_t tp_io_handle = NULL;
 
-    ESP_LOGI(TAG, "Initialize I2C");
-    const i2c_config_t i2c_conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = EXAMPLE_PIN_NUM_I2C_SDA,
-        .scl_io_num = EXAMPLE_PIN_NUM_I2C_SCL,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 400000,
-    };
-    /* Initialize I2C */
-    ESP_ERROR_CHECK(i2c_param_config(EXAMPLE_I2C_NUM, &i2c_conf));
-    ESP_ERROR_CHECK(i2c_driver_install(EXAMPLE_I2C_NUM, i2c_conf.mode, 0, 0, 0));
-
     ESP_LOGI(TAG, "Initialize touch IO (I2C)");
     esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG();
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)EXAMPLE_I2C_NUM, &tp_io_config, &tp_io_handle));
@@ -340,6 +340,11 @@ static void task(void *param)
 
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
+static lv_obj_t *temp_hum_label;  // New label for temperature and humidity
+
+// Add these variables to store sensor readings
+static float current_temp = 2.0;  // Set to 2°C
+static float current_humidity = 90.0;  // Set to 90%
 
 static void update_time_task(void *pvParameters) {
     // Set the current time manually
@@ -361,12 +366,12 @@ static void update_time_task(void *pvParameters) {
             
             // Update time label
             char time_str[32];
-            strftime(time_str, sizeof(time_str), "%H:%M:%S", &timeinfo);
+            strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
             lv_label_set_text(time_label, time_str);
             
-            // Update date label
+            // Update date label with day of week and day of month
             char date_str[32];
-            strftime(date_str, sizeof(date_str), "%Y-%m-%d", &timeinfo);
+            strftime(date_str, sizeof(date_str), "%a %d", &timeinfo);
             lv_label_set_text(date_label, date_str);
             
             lvgl_unlock();
@@ -375,7 +380,7 @@ static void update_time_task(void *pvParameters) {
     }
 }
 
-static bool button_states[4] = {false, false, false, false}; // Track toggle state for each button
+static int active_button = 0; // Start with button 1 (index 0) active
 
 static void box_event_cb(lv_event_t *e) {
     lv_obj_t *box = lv_event_get_target(e);
@@ -390,16 +395,16 @@ static void box_event_cb(lv_event_t *e) {
         }
     }
     
-    if (index != -1) {
-        if (code == LV_EVENT_PRESSED) {
-            // Toggle the state
-            button_states[index] = !button_states[index];
-            // Set color based on toggle state
-            if (button_states[index]) {
-                lv_obj_set_style_bg_color(box, lv_color_hex(0x222222), 0); // Dark gray when highlighted
-            } else {
-                lv_obj_set_style_bg_color(box, lv_color_hex(0x000000), 0); // Black when not highlighted
-            }
+    if (index != -1 && code == LV_EVENT_PRESSED) {
+        // Only switch if pressing a different button
+        if (index != active_button) {
+            // Deactivate previously active button
+            lv_obj_t *prev_box = lv_obj_get_child(lv_obj_get_parent(box), active_button);
+            lv_obj_set_style_bg_color(prev_box, lv_color_hex(0x000000), 0);
+            
+            // Activate current button
+            lv_obj_set_style_bg_color(box, lv_color_hex(0x222222), 0); // Dark gray when highlighted
+            active_button = index;
         }
     }
 }
@@ -407,57 +412,64 @@ static void box_event_cb(lv_event_t *e) {
 static void create_clock_display(void) {
     // Create a container for the clock display at the top
     lv_obj_t *clock_cont = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(clock_cont, EXAMPLE_LCD_H_RES, 100);  // Height of 100 pixels for clock
+    lv_obj_set_size(clock_cont, EXAMPLE_LCD_H_RES, 120);  // Increased height from 90 to 120
     lv_obj_align(clock_cont, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_flex_flow(clock_cont, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(clock_cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(clock_cont, 10, 0);
+    lv_obj_set_style_pad_all(clock_cont, 5, 0);  // Increased padding from 2 to 5
     lv_obj_set_style_border_width(clock_cont, 0, 0);
-    lv_obj_set_style_bg_color(clock_cont, lv_color_hex(0x000000), 0); // Black background
+    lv_obj_set_style_bg_color(clock_cont, lv_color_hex(0x000000), 0);
 
-    // Create time label
+    // Create time label with larger font
     time_label = lv_label_create(clock_cont);
-    lv_obj_set_style_text_font(time_label, &lv_font_montserrat_26, 0);
-    lv_label_set_text(time_label, "08:44:00");
-    lv_obj_set_style_text_color(time_label, lv_color_hex(0xFFD700), 0); // Golden text
+    lv_obj_set_style_text_font(time_label, &lv_font_montserrat_32, 0);  // Increased from 28 to 32
+    lv_label_set_text(time_label, "08:44");
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xFFD700), 0);
     
     // Create date label
     date_label = lv_label_create(clock_cont);
-    lv_obj_set_style_text_font(date_label, &lv_font_montserrat_26, 0);
+    lv_obj_set_style_text_font(date_label, &lv_font_montserrat_20, 0);  // Increased from 16 to 20
     lv_label_set_text(date_label, "2025-06-09");
-    lv_obj_set_style_text_color(date_label, lv_color_hex(0xFFD700), 0); // Golden text
+    lv_obj_set_style_text_color(date_label, lv_color_hex(0xFFD700), 0);
 
-    // Add a yellow line below the date label
+    // Create temperature and humidity label
+    temp_hum_label = lv_label_create(clock_cont);
+    lv_obj_set_style_text_font(temp_hum_label, &lv_font_montserrat_18, 0);
+    lv_label_set_text(temp_hum_label, "2.0°C    90.0%");  // Added more spaces between values
+    lv_obj_set_style_text_color(temp_hum_label, lv_color_hex(0xFFD700), 0);
+
+    // Add a yellow line below the temperature/humidity label
     lv_obj_t *line = lv_obj_create(clock_cont);
     lv_obj_set_size(line, 200, 2);
-    lv_obj_set_style_bg_color(line, lv_color_hex(0xFFD700), 0); // Yellow line
+    lv_obj_set_style_bg_color(line, lv_color_hex(0xFFD700), 0);
     lv_obj_set_style_border_width(line, 0, 0);
-    lv_obj_align_to(line, date_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 5); // Align below date label with 5px gap
+    lv_obj_align_to(line, temp_hum_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 5);  // Increased gap from 2 to 5
 
     // Set screen background to black
     lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x000000), 0);
 
-    // Create container for boxes
+    // Create container for boxes - adjust height to account for clock container
     lv_obj_t *boxes_cont = lv_obj_create(lv_scr_act());
-    lv_obj_set_size(boxes_cont, EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES - 100);  // Remaining height
+    lv_obj_set_size(boxes_cont, EXAMPLE_LCD_H_RES, EXAMPLE_LCD_V_RES - 120);  // Adjusted for new clock height
     lv_obj_align(boxes_cont, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_flex_flow(boxes_cont, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(boxes_cont, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_all(boxes_cont, 10, 0);
+    lv_obj_set_style_pad_all(boxes_cont, 15, 0);
+    lv_obj_set_style_pad_top(boxes_cont, 25, 0);
     lv_obj_set_style_border_width(boxes_cont, 0, 0);
-    lv_obj_set_style_bg_color(boxes_cont, lv_color_hex(0x000000), 0); // Black background
+    lv_obj_set_style_bg_color(boxes_cont, lv_color_hex(0x000000), 0);
 
     // Create 4 boxes with labels
     for(int i = 1; i <= 4; i++) {
         lv_obj_t *box = lv_obj_create(boxes_cont);
-        lv_obj_set_size(box, 70, 70);  // Size of each box
-        lv_obj_set_style_bg_color(box, lv_color_hex(0x000000), 0);  // Black background
-        lv_obj_set_style_radius(box, 10, 0);  // Rounded corners
+        lv_obj_set_size(box, 70, 70);  // Restored to original size
+        // Set initial color - highlight first box, others black
+        lv_obj_set_style_bg_color(box, (i == 1) ? lv_color_hex(0x222222) : lv_color_hex(0x000000), 0);
+        lv_obj_set_style_radius(box, 12, 0);  // Restored to original radius
         lv_obj_set_style_border_width(box, 0, 0);
         
         // Add press and release events
         lv_obj_add_event_cb(box, box_event_cb, LV_EVENT_PRESSED, NULL);
-        lv_obj_add_event_cb(box, box_event_cb, LV_EVENT_RELEASED, NULL);
         
         // Create label inside box
         lv_obj_t *label = lv_label_create(box);
@@ -465,16 +477,78 @@ static void create_clock_display(void) {
         snprintf(label_text, sizeof(label_text), "%d", i);
         lv_label_set_text(label, label_text);
         // Set font size for the label
-        lv_obj_set_style_text_font(label, &lv_font_montserrat_26, 0);  // Use 26pt font
-        lv_obj_set_style_text_color(label, lv_color_hex(0xFFD700), 0); // Golden text
+        lv_obj_set_style_text_font(label, &lv_font_montserrat_24, 0);  // Restored to original font size
+        lv_obj_set_style_text_color(label, lv_color_hex(0xFFD700), 0);
         lv_obj_center(label);
     }
+}
+
+static esp_err_t bme280_init(void) {
+    esp_err_t ret;
+    
+    // Initialize I2C for BME280 using the old driver
+    i2c_config_t i2c_conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = BME280_SDA_PIN,
+        .scl_io_num = BME280_SCL_PIN,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 400000
+    };
+    
+    // Install I2C driver
+    ret = i2c_param_config(BME280_I2C_NUM, &i2c_conf);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C param config failed");
+        return ret;
+    }
+    
+    ret = i2c_driver_install(BME280_I2C_NUM, i2c_conf.mode, 0, 0, 0);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C driver install failed");
+        return ret;
+    }
+    
+    // Create BME280 device handle using the old I2C driver
+    bme280_dev = bme280_create(BME280_I2C_NUM, BME280_I2C_ADDR);
+    if (bme280_dev == NULL) {
+        ESP_LOGE(TAG, "BME280 create failed");
+        return ESP_FAIL;
+    }
+    
+    // Initialize BME280 with default settings
+    ret = bme280_default_init(bme280_dev);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "BME280 init failed");
+        bme280_delete(&bme280_dev);
+        return ret;
+    }
+    
+    // Set sampling mode
+    ret = bme280_set_sampling(bme280_dev,
+                             BME280_MODE_NORMAL,
+                             BME280_SAMPLING_X1,
+                             BME280_SAMPLING_X1,
+                             BME280_SAMPLING_X1,
+                             BME280_FILTER_OFF,
+                             BME280_STANDBY_MS_500);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "BME280 set sampling failed");
+        bme280_delete(&bme280_dev);
+        return ret;
+    }
+    
+    ESP_LOGI(TAG, "BME280 initialized successfully");
+    return ESP_OK;
 }
 
 void app_main(void)
 {
     lvgl_api_mux = xSemaphoreCreateRecursiveMutex();
     lv_init();
+    
+    // Remove I2C bus initialization since we're using the old driver directly
+    
     display_init();
     touch_init(); 
     lv_port_disp_init();
@@ -482,6 +556,12 @@ void app_main(void)
     lvgl_tick_timer_init(EXAMPLE_LVGL_TICK_PERIOD_MS);
     bsp_brightness_init();
     bsp_brightness_set_level(80);
+    
+    // Initialize BME280
+    esp_err_t ret = bme280_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "BME280 initialization failed");
+    }
     
     if (lvgl_lock(-1)) {
         create_clock_display();

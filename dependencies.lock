@@ -1,20 +1,47 @@
 dependencies:
+  espressif/bme280:
+    component_hash: 873d97d0bd30004f45d1653f078a4bafe39c1767e57d4bae0f0a13bc3a4d5e3d
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: espressif/i2c_bus
+      registry_url: https://components.espressif.com
+      require: public
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.1
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
   espressif/esp_lcd_touch:
     component_hash: 779b4ba2464a3ae85681e4b860caa5fdc35801458c23f3039ee761bae7f442a4
     dependencies:
     - name: idf
-      registry_url: https://components.espressif.com
       require: private
       version: '>=4.4.2'
     source:
-      registry_url: https://components.espressif.com/
+      registry_url: https://components.espressif.com
       type: service
     version: 1.1.2
   espressif/esp_lcd_touch_cst816s:
     component_hash: 8e9df8aec674b83450fbd029c1c4f06e8294b52f144f2cd3f1fa9e8f3c918a6f
     dependencies:
     - name: espressif/esp_lcd_touch
-      registry_url: https://components.espressif.com/
+      registry_url: https://components.espressif.com
       require: public
       version: ^1.0.4
     - name: idf
@@ -24,6 +51,20 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.0.5
+  espressif/i2c_bus:
+    component_hash: e3dddc78baa172f4768f3973fbecbd6c6c1f2cb23cc6a36cf3132758be092482
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.4.0
   idf:
     source:
       type: idf
@@ -36,9 +77,11 @@ dependencies:
       type: service
     version: 8.4.0
 direct_dependencies:
+- espressif/bme280
 - espressif/esp_lcd_touch_cst816s
+- espressif/i2c_bus
 - idf
 - lvgl/lvgl
-manifest_hash: 9b05f4fc007da587fd35fc84dc06d0e7515dd92cf46384f277d3ab090b344716
+manifest_hash: 65cb2854a91b773f2a0e38cb2d087547c260aaee878045fd2270231bc75e43c7
 target: esp32s3
 version: 2.0.0
