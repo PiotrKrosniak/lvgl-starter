@@ -15,15 +15,21 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
+#include "driver/i2c.h"
 
 #include "esp_log.h"
 
 #include "lvgl.h"
 #include "demos/lv_demos.h"
 
-// BME280 includes
+#include "esp_netif.h"
+#include "esp_wifi.h"
+#include "nvs_flash.h"
+
+#include "esp_sntp.h"
+
+#define CONFIG_I2C_BUS_BACKWARD_CONFIG 1
 #include "bme280.h"
-#include "i2c_bus.h"
 
 #define EXAMPLE_PIN_NUM_SCLK 39
 #define EXAMPLE_PIN_NUM_MOSI 38
@@ -61,15 +67,8 @@
 #define EXAMPLE_LVGL_TASK_MAX_DELAY_MS 500
 #define EXAMPLE_LVGL_TASK_MIN_DELAY_MS 1
 
-// Update BME280 related defines with correct pins and I2C port
-#define BME280_I2C_ADDR 0x76  // BME280 I2C address
-#define BME280_SDA_PIN EXAMPLE_PIN_NUM_I2C_SDA  // Use same SDA pin as touch
-#define BME280_SCL_PIN EXAMPLE_PIN_NUM_I2C_SCL  // Use same SCL pin as touch
-#define BME280_I2C_NUM EXAMPLE_I2C_NUM  // Use same I2C port as touch
-
-// BME280 variables
-static bme280_handle_t bme280_dev = NULL;
-static i2c_bus_handle_t i2c_bus = NULL;
+#define WIFI_SSID "DIGIFIBRA-bPKy"
+#define WIFI_PASS "3eFuN5GYbE"
 
 static const char *TAG = "lvgl_example";
 static lv_indev_drv_t indev_drv; // Input device driver (Touch)
@@ -340,11 +339,49 @@ static void task(void *param)
 
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
-static lv_obj_t *temp_hum_label;  // New label for temperature and humidity
+static lv_obj_t *wifi_dot = NULL;
+static volatile bool wifi_connected = false;
+static bool sntp_started = false;
 
-// Add these variables to store sensor readings
-static float current_temp = 2.0;  // Set to 2°C
-static float current_humidity = 90.0;  // Set to 90%
+static void initialize_sntp(void)
+{
+    if (sntp_started) return;
+    ESP_LOGI(TAG, "Initializing SNTP");
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, "pool.ntp.org");
+    sntp_init();
+
+    /* Set timezone to Valencia, Spain (Europe/Madrid) */
+    setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
+
+    sntp_started = true;
+}
+
+// Event handler for Wi-Fi and IP events
+static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    if (event_base == WIFI_EVENT)
+    {
+        switch (event_id)
+        {
+        case WIFI_EVENT_STA_START:
+            esp_wifi_connect();
+            break;
+        case WIFI_EVENT_STA_DISCONNECTED:
+            wifi_connected = false;
+            esp_wifi_connect(); // auto-reconnect
+            break;
+        default:
+            break;
+        }
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        wifi_connected = true;
+        initialize_sntp();
+    }
+}
 
 static void update_time_task(void *pvParameters) {
     // Set the current time manually
@@ -356,24 +393,28 @@ static void update_time_task(void *pvParameters) {
         .tm_min = 40,    // 40 minutes
         .tm_sec = 0      // 0 seconds
     };
-    time_t now = mktime(&timeinfo);
-    
+    time_t now;
+
     while (1) {
         if (lvgl_lock(-1)) {
             // Update time
-            now++;
+            time(&now);
             localtime_r(&now, &timeinfo);
-            
+
             // Update time label
             char time_str[32];
             strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
             lv_label_set_text(time_label, time_str);
-            
+
             // Update date label with day of week and day of month
             char date_str[32];
             strftime(date_str, sizeof(date_str), "%a %d", &timeinfo);
             lv_label_set_text(date_label, date_str);
-            
+
+            // Update Wi-Fi indicator color
+            lv_color_t dot_col = wifi_connected ? lv_color_hex(0xFFD700) /*yellow*/ : lv_color_hex(0xFF0000);
+            lv_obj_set_style_bg_color(wifi_dot, dot_col, 0);
+
             lvgl_unlock();
         }
         vTaskDelay(pdMS_TO_TICKS(1000)); // Update every second
@@ -432,19 +473,6 @@ static void create_clock_display(void) {
     lv_label_set_text(date_label, "2025-06-09");
     lv_obj_set_style_text_color(date_label, lv_color_hex(0xFFD700), 0);
 
-    // Create temperature and humidity label
-    temp_hum_label = lv_label_create(clock_cont);
-    lv_obj_set_style_text_font(temp_hum_label, &lv_font_montserrat_18, 0);
-    lv_label_set_text(temp_hum_label, "2.0°C    90.0%");  // Added more spaces between values
-    lv_obj_set_style_text_color(temp_hum_label, lv_color_hex(0xFFD700), 0);
-
-    // Add a yellow line below the temperature/humidity label
-    lv_obj_t *line = lv_obj_create(clock_cont);
-    lv_obj_set_size(line, 200, 2);
-    lv_obj_set_style_bg_color(line, lv_color_hex(0xFFD700), 0);
-    lv_obj_set_style_border_width(line, 0, 0);
-    lv_obj_align_to(line, temp_hum_label, LV_ALIGN_OUT_BOTTOM_MID, 0, 5);  // Increased gap from 2 to 5
-
     // Set screen background to black
     lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x000000), 0);
 
@@ -481,74 +509,75 @@ static void create_clock_display(void) {
         lv_obj_set_style_text_color(label, lv_color_hex(0xFFD700), 0);
         lv_obj_center(label);
     }
+
+    // Create Wi-Fi status dot in top-left corner
+    wifi_dot = lv_obj_create(lv_scr_act());
+    lv_obj_set_size(wifi_dot, 12, 12);
+    lv_obj_set_style_radius(wifi_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_border_width(wifi_dot, 0, 0);
+    lv_obj_align(wifi_dot, LV_ALIGN_TOP_LEFT, 5, 5);
+    lv_obj_set_style_bg_color(wifi_dot, lv_color_hex(0xFF0000), 0); // start red
 }
 
-static esp_err_t bme280_init(void) {
-    esp_err_t ret;
-    
-    // Initialize I2C for BME280 using the old driver
-    i2c_config_t i2c_conf = {
+static void i2c_master_init(void)
+{
+    const i2c_config_t i2c_conf = {
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = BME280_SDA_PIN,
-        .scl_io_num = BME280_SCL_PIN,
+        .sda_io_num = EXAMPLE_PIN_NUM_I2C_SDA,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_io_num = EXAMPLE_PIN_NUM_I2C_SCL,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 400000
+        .master.clk_speed = 400000,
+        .clk_flags = 0,
     };
-    
-    // Install I2C driver
-    ret = i2c_param_config(BME280_I2C_NUM, &i2c_conf);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2C param config failed");
-        return ret;
-    }
-    
-    ret = i2c_driver_install(BME280_I2C_NUM, i2c_conf.mode, 0, 0, 0);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2C driver install failed");
-        return ret;
-    }
-    
-    // Create BME280 device handle using the old I2C driver
-    bme280_dev = bme280_create(BME280_I2C_NUM, BME280_I2C_ADDR);
-    if (bme280_dev == NULL) {
-        ESP_LOGE(TAG, "BME280 create failed");
-        return ESP_FAIL;
-    }
-    
-    // Initialize BME280 with default settings
-    ret = bme280_default_init(bme280_dev);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "BME280 init failed");
-        bme280_delete(&bme280_dev);
-        return ret;
-    }
-    
-    // Set sampling mode
-    ret = bme280_set_sampling(bme280_dev,
-                             BME280_MODE_NORMAL,
-                             BME280_SAMPLING_X1,
-                             BME280_SAMPLING_X1,
-                             BME280_SAMPLING_X1,
-                             BME280_FILTER_OFF,
-                             BME280_STANDBY_MS_500);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "BME280 set sampling failed");
-        bme280_delete(&bme280_dev);
-        return ret;
-    }
-    
-    ESP_LOGI(TAG, "BME280 initialized successfully");
-    return ESP_OK;
+    ESP_ERROR_CHECK(i2c_param_config(EXAMPLE_I2C_NUM, &i2c_conf));
+    ESP_ERROR_CHECK(i2c_driver_install(EXAMPLE_I2C_NUM, i2c_conf.mode, 0, 0, 0));
+}
+
+static void wifi_init(void)
+{
+    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    esp_netif_create_default_wifi_sta();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    // Register event handlers
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
+
+    wifi_config_t wifi_config = {
+        .sta = {
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .pmf_cfg = {
+                .capable = true,
+                .required = false,
+            },
+        }
+    };
+    strcpy((char *)wifi_config.sta.ssid, WIFI_SSID);
+    strcpy((char *)wifi_config.sta.password, WIFI_PASS);
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG, "WiFi init done. Connecting to %s", WIFI_SSID);
 }
 
 void app_main(void)
 {
     lvgl_api_mux = xSemaphoreCreateRecursiveMutex();
     lv_init();
-    
-    // Remove I2C bus initialization since we're using the old driver directly
-    
+
+    /* Initialize I2C master for touch controller */
+    i2c_master_init();
+
+    /* Initialize Wi-Fi (testing only, no connection) */
+    wifi_init();
+
     display_init();
     touch_init(); 
     lv_port_disp_init();
@@ -556,13 +585,7 @@ void app_main(void)
     lvgl_tick_timer_init(EXAMPLE_LVGL_TICK_PERIOD_MS);
     bsp_brightness_init();
     bsp_brightness_set_level(80);
-    
-    // Initialize BME280
-    esp_err_t ret = bme280_init();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "BME280 initialization failed");
-    }
-    
+
     if (lvgl_lock(-1)) {
         create_clock_display();
         lvgl_unlock();
